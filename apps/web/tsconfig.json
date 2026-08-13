@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "forceConsistentCasingInFileNames": true,
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@tracy/ui": ["../../packages/ui/src/index.ts"],
+      "@tracy/localization": ["../../packages/localization/src/index.ts"],
+      "@tracy/curriculum": ["../../packages/curriculum/src/index.ts"],
+      "@tracy/exercise-engine": ["../../packages/exercise-engine/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../../packages/**/*.ts", "../../packages/**/*.tsx"],
+  "exclude": ["node_modules"]
+}

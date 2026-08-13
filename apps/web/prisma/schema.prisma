@@ -1,0 +1,985 @@
+// Tracy English — data model.
+//
+// One database serves both halves of the product: the learning platform (curriculum,
+// practice, progress) and the language centre (classes, teachers, enquiries, enrolments).
+// They are not separate systems bolted together — a consultation request becomes an
+// enrolment, an enrolment opens a course, and the course is the same one a self-study
+// learner can work through alone.
+//
+// Conventions
+//   * Every learner-facing string exists twice, `…Vi` and `…En`. Vietnamese is the primary
+//     language and is never allowed to be a machine echo of the English.
+//   * Anything ingested from an outside corpus carries `sourceId` and `attribution`, so a
+//     sentence can always be traced to the corpus and the person who wrote it.
+//   * Content that an administrator authors has `status` (DRAFT/PUBLISHED/ARCHIVED) rather
+//     than a bare boolean, because "unpublished" and "retired" are different things.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// People and access
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("STUDENT") // STUDENT | TEACHER | ADMIN
+  locale       String   @default("vi")
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastSeenAt   DateTime?
+
+  sessions            Session[]
+  studentProfile      StudentProfile?
+  teacherProfile      TeacherProfile?
+  enrollments         Enrollment[]
+  lessonProgress      LessonProgress[]
+  attempts            ExerciseAttempt[]
+  vocabularyProgress  VocabularyProgress[]
+  bookmarks           Bookmark[]
+  achievements        UserAchievement[]
+  studyDays           StudyDay[]
+  classEnrollments    ClassEnrollment[]
+  bookings            Booking[]
+  consultations       ConsultationRequest[] @relation("ConsultationOwner")
+  assignedLeads       ConsultationRequest[] @relation("ConsultationAssignee")
+  orders              Order[]
+  notifications       Notification[]
+  auditEntries        AuditLog[]
+  placementResults    PlacementResult[]
+  reviewQueue         ReviewItem[]
+
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+
+  @@index([userId])
+}
+
+model StudentProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Audience segment drives which courses are recommended on the dashboard.
+  segment        String   @default("ADULT") // PRIMARY | SECONDARY | HIGH_SCHOOL | UNIVERSITY | ADULT | PROFESSIONAL
+  cefrLevel      String   @default("A1")
+  goal           String? // e.g. IELTS_65 | COMMUNICATION | SCHOOL | WORK
+  targetExam     String?
+  dailyGoalMin   Int      @default(15)
+  school         String?
+  grade          String?
+  parentName     String?
+  parentPhone    String?
+  notes          String?
+  streakCurrent  Int      @default(0)
+  streakLongest  Int      @default(0)
+  totalXp        Int      @default(0)
+  lastStudiedAt  DateTime?
+}
+
+model TeacherProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug            String   @unique
+  headlineVi      String
+  headlineEn      String
+  bioVi           String
+  bioEn           String
+  photoUrl        String?
+  yearsExperience Int      @default(0)
+  educationVi     String   @default("[]") // JSON array of { qualification, institution, year }
+  certificatesVi  String   @default("[]") // JSON array of { name, issuer, year }
+  achievementsVi  String   @default("[]") // JSON array of strings
+  methodsVi       String   @default("[]") // JSON array of teaching-method strings
+  specialties     String   @default("[]") // JSON array of skill/exam tags
+  languages       String   @default("[\"vi\",\"en\"]")
+  rating          Float    @default(5)
+  reviewCount     Int      @default(0)
+  status          String   @default("PUBLISHED")
+  displayOrder    Int      @default(0)
+
+  courses      Course[]
+  classGroups  ClassGroup[]
+  availability TeacherAvailability[]
+  bookings     Booking[]
+}
+
+model TeacherAvailability {
+  id        String @id @default(cuid())
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  weekday   Int // 0 = Sunday
+  startMin  Int // minutes from midnight, local time
+  endMin    Int
+  mode      String @default("ONLINE") // ONLINE | OFFLINE | BOTH
+
+  @@index([teacherId])
+}
+
+// ---------------------------------------------------------------------------
+// Curriculum
+// ---------------------------------------------------------------------------
+
+/// A top-level branch of the catalogue: "English for children", "IELTS", "Grammar"…
+model Track {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  titleVi     String
+  titleEn     String
+  summaryVi   String
+  summaryEn   String
+  category    String // AGE | GENERAL | EXAM | SKILL
+  audience    String   @default("[]") // JSON array of audience segments
+  accent      String   @default("brand") // design-system colour key
+  icon        String   @default("book")
+  displayOrder Int     @default(0)
+  status      String   @default("PUBLISHED")
+
+  courses Course[]
+}
+
+model Course {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  trackId       String
+  track         Track    @relation(fields: [trackId], references: [id])
+  titleVi       String
+  titleEn       String
+  subtitleVi    String   @default("")
+  subtitleEn    String   @default("")
+  descriptionVi String
+  descriptionEn String
+  cefrFrom      String   @default("A1")
+  cefrTo        String   @default("A2")
+  skills        String   @default("[]") // JSON array: listening | reading | writing | speaking | grammar | vocabulary | pronunciation
+  outcomesVi    String   @default("[]") // JSON array of learning outcomes
+  outcomesEn    String   @default("[]")
+  requirementsVi String  @default("[]")
+  audience      String   @default("[]")
+  heroImage     String?
+  accent        String   @default("brand")
+  estimatedHours Int     @default(20)
+  // Delivery and commerce
+  deliveryModes String   @default("[\"SELF_STUDY\"]") // SELF_STUDY | ONLINE_CLASS | OFFLINE_CLASS | ONE_TO_ONE | SMALL_GROUP
+  isFree        Boolean  @default(true)
+  priceVnd      Int      @default(0)
+  comparePriceVnd Int?
+  status        String   @default("PUBLISHED")
+  displayOrder  Int      @default(0)
+  teacherId     String?
+  teacher       TeacherProfile? @relation(fields: [teacherId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  modules     Module[]
+  enrollments Enrollment[]
+  classGroups ClassGroup[]
+
+  @@index([trackId])
+  @@index([status])
+}
+
+model Module {
+  id          String @id @default(cuid())
+  courseId    String
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  slug        String
+  titleVi     String
+  titleEn     String
+  summaryVi   String @default("")
+  summaryEn   String @default("")
+  displayOrder Int   @default(0)
+  status      String @default("PUBLISHED")
+
+  lessons Lesson[]
+
+  @@unique([courseId, slug])
+  @@index([courseId])
+}
+
+/// One sitting of study. Every lesson follows the same seven-part shape — objective,
+/// explanation, examples, practice, feedback, summary, next step — because that is the
+/// structure that makes self-study work without a teacher in the room.
+model Lesson {
+  id            String @id @default(cuid())
+  moduleId      String
+  module        Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  slug          String @unique
+  kind          String @default("GRAMMAR") // GRAMMAR | VOCABULARY | LISTENING | READING | WRITING | SPEAKING | PRONUNCIATION | REVIEW | ASSESSMENT
+  titleVi       String
+  titleEn       String
+  objectiveVi   String
+  objectiveEn   String
+  // Ordered content blocks, authored in the admin panel. See src/lib/lesson-blocks.ts.
+  blocks        String @default("[]")
+  summaryVi     String @default("")
+  summaryEn     String @default("")
+  nextStepVi    String @default("")
+  cefr          String @default("A1")
+  estimatedMinutes Int @default(15)
+  displayOrder  Int    @default(0)
+  status        String @default("PUBLISHED")
+  // Optional links to ingested material this lesson is built around.
+  grammarTopicId String?
+  grammarTopic   GrammarTopic? @relation(fields: [grammarTopicId], references: [id])
+  listeningId    String?
+  listening      ListeningItem? @relation(fields: [listeningId], references: [id])
+  readingId      String?
+  reading        ReadingItem?  @relation(fields: [readingId], references: [id])
+  vocabularyListId String?
+  vocabularyList   VocabularyList? @relation(fields: [vocabularyListId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exercises Exercise[]
+  progress  LessonProgress[]
+
+  @@index([moduleId])
+  @@index([kind])
+}
+
+/// A single practice question. Exercises always belong to something — a lesson, a grammar
+/// topic or a vocabulary list — so that practice is never disconnected from teaching.
+model Exercise {
+  id            String @id @default(cuid())
+  lessonId      String?
+  lesson        Lesson? @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  grammarTopicId String?
+  grammarTopic  GrammarTopic? @relation(fields: [grammarTopicId], references: [id], onDelete: Cascade)
+  vocabularyListId String?
+  vocabularyList VocabularyList? @relation(fields: [vocabularyListId], references: [id], onDelete: Cascade)
+  listeningId   String?
+  listening     ListeningItem? @relation(fields: [listeningId], references: [id], onDelete: Cascade)
+  readingId     String?
+  reading       ReadingItem? @relation(fields: [readingId], references: [id], onDelete: Cascade)
+
+  type          String // MULTIPLE_CHOICE | MULTIPLE_SELECT | GAP_FILL | REORDER | MATCHING | TRUE_FALSE | SHORT_ANSWER | TRANSLATION | DICTATION
+  skill         String @default("grammar")
+  cefr          String @default("A1")
+  difficulty    Int    @default(2) // 1 easiest … 5 hardest
+  promptVi      String @default("")
+  promptEn      String
+  /// Extra material the question refers to — a sentence, an audio clip range, a passage.
+  context       String @default("")
+  /// JSON: shape depends on `type`. See packages/exercise-engine.
+  payload       String
+  answer        String
+  explanationVi String @default("")
+  explanationEn String @default("")
+  hintVi        String @default("")
+  points        Int    @default(1)
+  displayOrder  Int    @default(0)
+  status        String @default("PUBLISHED")
+  sourceId      String?
+  source        Source? @relation(fields: [sourceId], references: [id])
+  attribution   String @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  attempts ExerciseAttempt[]
+
+  @@index([lessonId])
+  @@index([grammarTopicId])
+  @@index([skill, cefr])
+}
+
+// ---------------------------------------------------------------------------
+// Ingested learning content
+// ---------------------------------------------------------------------------
+
+/// Where a piece of content came from, and under what licence. Rendered on /credits.
+model Source {
+  id           String @id
+  name         String
+  publisher    String @default("")
+  url          String @default("")
+  licence      String
+  licenceUrl   String @default("")
+  attribution  String
+  usedFor      String @default("")
+
+  vocabulary  VocabularyItem[]
+  examples    VocabularyExample[]
+  listening   ListeningItem[]
+  reading     ReadingItem[]
+  grammar     GrammarTopic[]
+  exercises   Exercise[]
+  media       MediaAsset[]
+}
+
+model VocabularyItem {
+  id            String @id @default(cuid())
+  word          String @unique
+  cefr          String @default("A1")
+  partsOfSpeech String @default("[]") // JSON array
+  ipaUk         String @default("")
+  ipaUs         String @default("")
+  audioPath     String @default("")
+  audioAccent   String @default("")
+  audioCredit   String @default("")
+  /// Vietnamese meaning — the short gloss shown on the card.
+  meaningVi     String @default("")
+  /// Longer Vietnamese explanation: nuance, register, when to use which sense.
+  explanationVi String @default("")
+  /// English definitions, JSON array of { pos, gloss, example }.
+  sensesEn      String @default("[]")
+  /// Vietnamese definitions from the Anh–Việt dictionary, JSON array of { pos, text }.
+  sensesVi      String @default("[]")
+  forms         String @default("[]") // inflected forms
+  etymology     String @default("")
+  /// Mistakes Vietnamese learners commonly make with this word.
+  pitfallVi     String @default("")
+  topics        String @default("[]")
+  frequencyRank Int?
+  status        String @default("PUBLISHED")
+  sourceId      String?
+  source        Source? @relation(fields: [sourceId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  examples   VocabularyExample[]
+  listItems  VocabularyListItem[]
+  progress   VocabularyProgress[]
+
+  @@index([cefr])
+  @@index([status])
+}
+
+model VocabularyExample {
+  id           String @id @default(cuid())
+  vocabularyId String
+  vocabulary   VocabularyItem @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  textEn       String
+  textVi       String
+  cefr         String @default("A1")
+  sourceId     String?
+  source       Source? @relation(fields: [sourceId], references: [id])
+  attribution  String @default("")
+  displayOrder Int    @default(0)
+
+  @@index([vocabularyId])
+}
+
+/// A curated set of words: "Travel — at the airport", "IELTS academic verbs", "Unit 3".
+model VocabularyList {
+  id          String @id @default(cuid())
+  slug        String @unique
+  titleVi     String
+  titleEn     String
+  summaryVi   String @default("")
+  cefr        String @default("A1")
+  topic       String @default("general")
+  accent      String @default("brand")
+  icon        String @default("book")
+  status      String @default("PUBLISHED")
+  displayOrder Int   @default(0)
+
+  items     VocabularyListItem[]
+  lessons   Lesson[]
+  exercises Exercise[]
+}
+
+model VocabularyListItem {
+  id           String @id @default(cuid())
+  listId       String
+  list         VocabularyList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  vocabularyId String
+  vocabulary   VocabularyItem @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  displayOrder Int    @default(0)
+
+  @@unique([listId, vocabularyId])
+  @@index([listId])
+}
+
+model GrammarTopic {
+  id            String @id @default(cuid())
+  slug          String @unique
+  titleVi       String
+  titleEn       String
+  cefr          String @default("A1")
+  category      String @default("tense") // tense | clause | modality | article | preposition | word-order | voice | conditional | reported
+  summaryVi     String @default("")
+  /// Vietnamese explanation of the rule — the part a Vietnamese learner actually reads.
+  theoryVi      String
+  theoryEn      String @default("")
+  /// JSON array of { en, vi, note } — form tables and model sentences.
+  patterns      String @default("[]")
+  examples      String @default("[]")
+  /// Mistakes that come specifically from Vietnamese interference.
+  pitfallsVi    String @default("[]")
+  tipsVi        String @default("[]")
+  displayOrder  Int    @default(0)
+  status        String @default("PUBLISHED")
+  sourceId      String?
+  source        Source? @relation(fields: [sourceId], references: [id])
+  attribution   String @default("")
+  /// Related VOA Everyday Grammar article, when one covers this point.
+  readingId     String?
+  reading       ReadingItem? @relation(fields: [readingId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exercises Exercise[]
+  lessons   Lesson[]
+
+  @@index([cefr])
+  @@index([category])
+}
+
+model ListeningItem {
+  id            String @id @default(cuid())
+  slug          String @unique
+  titleVi       String
+  titleEn       String
+  series        String @default("")
+  seriesNameVi  String @default("")
+  cefr          String @default("B1")
+  summaryVi     String @default("")
+  summaryEn     String @default("")
+  /// Remote audio URL from the publisher. Public-domain broadcast audio, never synthesised.
+  audioUrl      String
+  /// Optional locally cached copy, populated by `npm run media:fetch`.
+  audioPath     String @default("")
+  durationSec   Int    @default(0)
+  /// JSON array of transcript paragraphs.
+  transcript    String @default("[]")
+  /// JSON array of Vietnamese paragraph translations, aligned by index where available.
+  translationVi String @default("[]")
+  /// JSON array of { word, pos, definition } from the publisher's own glossary.
+  glossary      String @default("[]")
+  imageUrl      String @default("")
+  publishedAt   DateTime?
+  sourceId      String?
+  source        Source? @relation(fields: [sourceId], references: [id])
+  sourceUrl     String @default("")
+  attribution   String @default("")
+  status        String @default("PUBLISHED")
+  displayOrder  Int    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exercises Exercise[]
+  lessons   Lesson[]
+
+  @@index([cefr])
+  @@index([series])
+}
+
+model ReadingItem {
+  id            String @id @default(cuid())
+  slug          String @unique
+  titleVi       String
+  titleEn       String
+  kind          String @default("ARTICLE") // ARTICLE | STORY | DIALOGUE | EXAM_PASSAGE
+  series        String @default("")
+  cefr          String @default("B1")
+  summaryVi     String @default("")
+  summaryEn     String @default("")
+  /// JSON array of paragraphs.
+  body          String
+  wordCount     Int    @default(0)
+  readingMinutes Int   @default(3)
+  glossary      String @default("[]")
+  imageUrl      String @default("")
+  audioUrl      String @default("")
+  publishedAt   DateTime?
+  sourceId      String?
+  source        Source? @relation(fields: [sourceId], references: [id])
+  sourceUrl     String @default("")
+  attribution   String @default("")
+  status        String @default("PUBLISHED")
+  displayOrder  Int    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exercises Exercise[]
+  lessons   Lesson[]
+  grammar   GrammarTopic[]
+
+  @@index([cefr])
+  @@index([kind])
+}
+
+/// Anything uploaded or downloaded: audio clips, images, imported documents.
+model MediaAsset {
+  id          String @id @default(cuid())
+  path        String @unique
+  kind        String // AUDIO | IMAGE | DOCUMENT
+  title       String @default("")
+  mimeType    String @default("")
+  bytes       Int    @default(0)
+  sourceId    String?
+  source      Source? @relation(fields: [sourceId], references: [id])
+  attribution String @default("")
+  licence     String @default("")
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+
+  @@index([kind])
+}
+
+// ---------------------------------------------------------------------------
+// Learning progress
+// ---------------------------------------------------------------------------
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  mode        String   @default("SELF_STUDY")
+  status      String   @default("ACTIVE") // ACTIVE | COMPLETED | PAUSED | CANCELLED
+  progress    Int      @default(0) // percent
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  lastLessonId String?
+
+  @@unique([userId, courseId])
+  @@index([userId])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  status      String   @default("IN_PROGRESS") // IN_PROGRESS | COMPLETED
+  score       Int      @default(0)
+  maxScore    Int      @default(0)
+  secondsSpent Int     @default(0)
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+}
+
+model ExerciseAttempt {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  response   String
+  isCorrect  Boolean
+  score      Float    @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([userId, exerciseId])
+  @@index([createdAt])
+}
+
+/// Spaced repetition state for one learner and one word (Leitner boxes with an ease factor).
+model VocabularyProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabularyId String
+  vocabulary   VocabularyItem @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  box          Int      @default(0) // 0 = new … 6 = mastered
+  ease         Float    @default(2.5)
+  intervalDays Int      @default(0)
+  dueAt        DateTime @default(now())
+  reviews      Int      @default(0)
+  correct      Int      @default(0)
+  lapses       Int      @default(0)
+  isFavourite  Boolean  @default(false)
+  lastReviewed DateTime?
+
+  @@unique([userId, vocabularyId])
+  @@index([userId, dueAt])
+}
+
+/// A generic "saved for later" across content types.
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType String // lesson | reading | listening | grammar | vocabulary | course
+  entityId   String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId])
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  code        String @unique
+  titleVi     String
+  titleEn     String
+  descriptionVi String
+  icon        String @default("award")
+  accent      String @default("sun")
+  threshold   Int    @default(1)
+  metric      String @default("LESSONS") // LESSONS | WORDS | STREAK | XP | EXERCISES | LISTENING | READING
+  displayOrder Int   @default(0)
+
+  awarded UserAchievement[]
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  awardedAt     DateTime @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+/// One row per learner per day — the basis for streaks and the activity heat map.
+model StudyDay {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String // YYYY-MM-DD in Asia/Ho_Chi_Minh
+  minutes   Int      @default(0)
+  xp        Int      @default(0)
+  lessons   Int      @default(0)
+  words     Int      @default(0)
+  exercises Int      @default(0)
+
+  @@unique([userId, day])
+  @@index([userId])
+}
+
+/// Items the recommender has queued for a learner: due words, unfinished lessons, weak skills.
+model ReviewItem {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String // VOCABULARY | LESSON | GRAMMAR | LISTENING | READING
+  entityId   String
+  reasonVi   String   @default("")
+  priority   Int      @default(5)
+  dueAt      DateTime @default(now())
+  resolvedAt DateTime?
+
+  @@index([userId, dueAt])
+}
+
+model PlacementResult {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email      String?
+  name       String?
+  cefr       String
+  score      Int
+  maxScore   Int
+  breakdown  String   @default("{}") // JSON: per-skill scores
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// The language centre
+// ---------------------------------------------------------------------------
+
+model ClassGroup {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  teacherId   String?
+  teacher     TeacherProfile? @relation(fields: [teacherId], references: [id])
+  format      String   @default("SMALL_GROUP") // ONE_TO_ONE | SMALL_GROUP | CLASS
+  mode        String   @default("ONLINE") // ONLINE | OFFLINE | HYBRID
+  titleVi     String
+  scheduleVi  String   @default("") // human-readable, e.g. "Thứ 3 & Thứ 5, 19:00–20:30"
+  room        String   @default("")
+  capacity    Int      @default(8)
+  enrolled    Int      @default(0)
+  priceVnd    Int      @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String   @default("OPEN") // OPEN | RUNNING | FULL | FINISHED | CANCELLED
+
+  enrollments ClassEnrollment[]
+  sessions    ClassSession[]
+
+  @@index([courseId])
+  @@index([status])
+}
+
+model ClassEnrollment {
+  id        String   @id @default(cuid())
+  classId   String
+  classGroup ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status    String   @default("ENROLLED") // ENROLLED | WAITLIST | WITHDRAWN | COMPLETED
+  joinedAt  DateTime @default(now())
+  note      String   @default("")
+
+  @@unique([classId, studentId])
+}
+
+model ClassSession {
+  id         String   @id @default(cuid())
+  classId    String
+  classGroup ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+  startsAt   DateTime
+  endsAt     DateTime
+  topicVi    String   @default("")
+  meetingUrl String   @default("")
+  status     String   @default("SCHEDULED")
+  notes      String   @default("")
+
+  @@index([classId])
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id])
+  kind        String   @default("ONE_TO_ONE") // ONE_TO_ONE | TRIAL | CONSULTATION
+  mode        String   @default("ONLINE")
+  startsAt    DateTime
+  durationMin Int      @default(60)
+  status      String   @default("REQUESTED") // REQUESTED | CONFIRMED | COMPLETED | CANCELLED
+  topicVi     String   @default("")
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([teacherId, startsAt])
+  @@index([userId])
+}
+
+model ConsultationRequest {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String
+  email         String   @default("")
+  /// What they want: exam prep, communication, school support…
+  goal          String   @default("")
+  currentLevel  String   @default("")
+  segment       String   @default("ADULT")
+  preferredMode String   @default("ONLINE")
+  preferredTime String   @default("")
+  message       String   @default("")
+  courseSlug    String   @default("")
+  source        String   @default("website")
+  status        String   @default("NEW") // NEW | CONTACTED | SCHEDULED | ENROLLED | CLOSED
+  assignedToId  String?
+  assignedTo    User?    @relation("ConsultationAssignee", fields: [assignedToId], references: [id])
+  userId        String?
+  user          User?    @relation("ConsultationOwner", fields: [userId], references: [id])
+  internalNotes String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Commerce (architecture in place; no gateway wired up yet)
+// ---------------------------------------------------------------------------
+
+model Product {
+  id          String @id @default(cuid())
+  sku         String @unique
+  kind        String // COURSE | PACKAGE | TUTORING | CLASS | CONSULTATION
+  titleVi     String
+  titleEn     String
+  descriptionVi String @default("")
+  priceVnd    Int
+  comparePriceVnd Int?
+  /// e.g. number of one-to-one sessions in a tutoring package.
+  quantity    Int    @default(1)
+  durationDays Int   @default(365)
+  courseSlug  String @default("")
+  features    String @default("[]")
+  accent      String @default("brand")
+  isPopular   Boolean @default(false)
+  status      String @default("PUBLISHED")
+  displayOrder Int   @default(0)
+
+  orderItems OrderItem[]
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  reference  String   @unique
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName String
+  customerPhone String
+  customerEmail String @default("")
+  subtotalVnd Int     @default(0)
+  discountVnd Int     @default(0)
+  totalVnd    Int     @default(0)
+  couponCode  String  @default("")
+  status      String  @default("PENDING") // PENDING | AWAITING_PAYMENT | PAID | CANCELLED | REFUNDED
+  /// Gateway is deliberately abstract: BANK_TRANSFER today, VNPAY/MOMO later.
+  paymentMethod String @default("BANK_TRANSFER")
+  paidAt      DateTime?
+  note        String  @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+  unitVnd   Int
+  totalVnd  Int
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider   String   @default("BANK_TRANSFER")
+  amountVnd  Int
+  status     String   @default("PENDING")
+  reference  String   @default("")
+  rawPayload String   @default("{}")
+  createdAt  DateTime @default(now())
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  descriptionVi String   @default("")
+  percentOff    Int      @default(0)
+  amountOffVnd  Int      @default(0)
+  maxRedemptions Int     @default(0)
+  redemptions   Int      @default(0)
+  expiresAt     DateTime?
+  status        String   @default("ACTIVE")
+}
+
+// ---------------------------------------------------------------------------
+// Website content management
+// ---------------------------------------------------------------------------
+
+model SiteSetting {
+  key       String @id
+  valueVi   String @default("")
+  valueEn   String @default("")
+  group     String @default("general")
+  label     String @default("")
+  updatedAt DateTime @updatedAt
+}
+
+model Page {
+  id        String @id @default(cuid())
+  slug      String @unique
+  titleVi   String
+  titleEn   String
+  bodyVi    String
+  bodyEn    String @default("")
+  status    String @default("PUBLISHED")
+  updatedAt DateTime @updatedAt
+}
+
+model Testimonial {
+  id        String @id @default(cuid())
+  name      String
+  roleVi    String @default("")
+  quoteVi   String
+  quoteEn   String @default("")
+  avatarUrl String @default("")
+  rating    Int    @default(5)
+  courseSlug String @default("")
+  resultVi  String @default("")
+  status    String @default("PUBLISHED")
+  displayOrder Int @default(0)
+}
+
+model FaqItem {
+  id         String @id @default(cuid())
+  questionVi String
+  questionEn String @default("")
+  answerVi   String
+  answerEn   String @default("")
+  category   String @default("general")
+  status     String @default("PUBLISHED")
+  displayOrder Int  @default(0)
+}
+
+model Announcement {
+  id        String @id @default(cuid())
+  titleVi   String
+  bodyVi    String @default("")
+  level     String @default("INFO") // INFO | SUCCESS | WARNING
+  href      String @default("")
+  startsAt  DateTime?
+  endsAt    DateTime?
+  status    String @default("PUBLISHED")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  titleVi   String
+  bodyVi    String   @default("")
+  href      String   @default("")
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+}
+
+/// UI strings an administrator can override without a deploy.
+model Translation {
+  id     String @id @default(cuid())
+  key    String
+  locale String
+  value  String
+
+  @@unique([key, locale])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String   @default("")
+  summary   String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

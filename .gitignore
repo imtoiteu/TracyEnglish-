@@ -1,0 +1,29 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+*.log
+npm-debug.log*
+.DS_Store
+coverage/
+test-results/
+playwright-report/
+.vscode/
+.idea/
+
+# Local database — recreated with `npm run db:push && npm run db:seed`
+apps/web/prisma/*.db
+apps/web/prisma/*.db-journal
+
+# Raw ingestion downloads. The distilled JSON in content/ IS committed;
+# the multi-hundred-megabyte source archives are not.
+scripts/ingest/.cache/
+media/_raw/
+__pycache__/
+*.pyc
+.venv/
