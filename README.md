@@ -186,6 +186,11 @@ volume is one row per exercise attempt. To move to Postgres, change the `datasou
 Article audio streams from VOA's public CDN by URL. Word pronunciation is served from
 `apps/web/public/media/pronunciation` and is committed, so pronunciation works offline.
 
+Both are **MP3**. That is a compatibility requirement, not a preference: the pronunciation
+clips were originally normalised to Ogg Vorbis, which Safari on iOS has never supported, so
+every one of them was silent on an iPhone or iPad while working on any desktop browser. MP3 is
+the one lossy format every browser decodes. Keep it that way if you re-run stage 5.
+
 ## Licence and attribution
 
 Application code is the property of Tracy English. Ingested learning material remains under the

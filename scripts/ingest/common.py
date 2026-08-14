@@ -198,12 +198,17 @@ def ensure_dirs() -> None:
     MEDIA.mkdir(parents=True, exist_ok=True)
 
 
-def transcode_audio(src: Path, dest: Path, *, bitrate: str = "40k") -> bool:
+def transcode_audio(src: Path, dest: Path, *, bitrate: str = "48k") -> bool:
     """
-    Re-encode a downloaded audio file to a small mono Ogg Vorbis clip.
+    Re-encode a downloaded audio file to a small mono MP3 clip.
 
     Source recordings from Wikimedia Commons vary wildly in size and format; normalising
     them keeps the repository lean without hurting intelligibility for pronunciation.
+
+    MP3 rather than Ogg Vorbis, which is what this produced originally: Safari on iOS has
+    never supported Vorbis, so every one of these clips was silent on an iPhone or iPad while
+    working everywhere else. MP3 is the one lossy format every browser decodes, and at this
+    bitrate the files came out smaller than the Vorbis ones they replaced.
     """
     import subprocess
 
@@ -212,7 +217,7 @@ def transcode_audio(src: Path, dest: Path, *, bitrate: str = "40k") -> bool:
         result = subprocess.run(
             [
                 "ffmpeg", "-loglevel", "error", "-y", "-i", str(src),
-                "-ac", "1", "-ar", "24000", "-c:a", "libvorbis", "-b:a", bitrate,
+                "-ac", "1", "-ar", "24000", "-c:a", "libmp3lame", "-b:a", bitrate,
                 str(dest),
             ],
             capture_output=True,

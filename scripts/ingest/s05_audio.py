@@ -198,7 +198,7 @@ def rebuild_index() -> None:
     vi_entries = read_json("vocabulary/wiktionary-vi.json")["entries"]
     lingua_libre = lingua_libre_index()
 
-    words = sorted(path.stem for path in AUDIO_DIR.glob("*.ogg"))
+    words = sorted(path.stem for path in AUDIO_DIR.glob("*.mp3"))
     log(f"{len(words)} clips on disk")
 
     # Work out which Commons file each clip came from, using the same preference order the
@@ -226,7 +226,7 @@ def rebuild_index() -> None:
 
     index: dict[str, dict] = {}
     for word in words:
-        path = AUDIO_DIR / f"{word}.ogg"
+        path = AUDIO_DIR / f"{word}.mp3"
         candidates = [available[name] for name in wanted[word] if name in available]
         chosen = None
         for preference in ("us", "uk", "au", "other"):
@@ -240,7 +240,7 @@ def rebuild_index() -> None:
             chosen = candidates[0]
 
         index[word] = {
-            "path": f"/media/pronunciation/{word}.ogg",
+            "path": f"/media/pronunciation/{word}.mp3",
             "accent": _accent(chosen["file"]) if chosen else "other",
             "commonsFile": chosen["file"] if chosen else "",
             "commonsPage": chosen["descriptionUrl"] if chosen else "",
@@ -341,7 +341,7 @@ def run(limit: int | None = None, max_words: int = 3200) -> None:
 
         suffix = Path(chosen["file"]).suffix.lower() or ".ogg"
         raw_path = RAW_DIR / f"{word}{suffix}"
-        final_path = AUDIO_DIR / f"{word}.ogg"
+        final_path = AUDIO_DIR / f"{word}.mp3"
 
         if not final_path.exists():
             if not download_to(chosen["url"], raw_path):
@@ -353,7 +353,7 @@ def run(limit: int | None = None, max_words: int = 3200) -> None:
             downloaded += 1
 
         index[word] = {
-            "path": f"/media/pronunciation/{word}.ogg",
+            "path": f"/media/pronunciation/{word}.mp3",
             "accent": _accent(chosen["file"]),
             "commonsFile": chosen["file"],
             "commonsPage": chosen["descriptionUrl"],

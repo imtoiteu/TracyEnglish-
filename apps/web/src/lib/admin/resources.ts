@@ -310,7 +310,7 @@ export const RESOURCES: AdminResource[] = [
       { name: 'partsOfSpeech', label: 'Từ loại', type: 'jsonList', group: 'Cơ bản' },
       { name: 'ipaUk', label: 'IPA (UK)', type: 'text', group: 'Phát âm' },
       { name: 'ipaUs', label: 'IPA (US)', type: 'text', group: 'Phát âm' },
-      { name: 'audioPath', label: 'Đường dẫn audio', type: 'text', hint: '/media/pronunciation/word.ogg', group: 'Phát âm' },
+      { name: 'audioPath', label: 'Đường dẫn audio', type: 'text', hint: '/media/pronunciation/word.mp3', group: 'Phát âm' },
       { name: 'audioCredit', label: 'Ghi công bản thu', type: 'text', group: 'Phát âm' },
       { name: 'meaningVi', label: 'Nghĩa tiếng Việt (ngắn)', type: 'text', group: 'Nghĩa' },
       { name: 'explanationVi', label: 'Giải thích tiếng Việt', type: 'textarea', rows: 4, group: 'Nghĩa' },

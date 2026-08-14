@@ -18,6 +18,22 @@ import { useI18n } from '@/lib/i18n';
  * rendering a dead button.
  */
 
+/**
+ * Let audio through the iPhone's ring/silent switch.
+ *
+ * On iOS, sound from an `<audio>` element is silenced by the hardware switch, so a learner
+ * with their phone on silent sees the player running and hears nothing — no error, nothing to
+ * click, no indication that the phone is the reason. Declaring the session as `playback` marks
+ * this as media the user asked to hear, which is the category that keeps playing regardless.
+ *
+ * Safari 16.4+ only. Everywhere else the property is absent and this does nothing, so it does
+ * not need feature-detecting beyond the optional access below.
+ */
+function allowPlaybackWhenSilenced() {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = 'playback';
+}
+
 /** A small round button that speaks one word. Used on vocabulary cards and in lists. */
 export function WordAudioButton({
   src,
@@ -46,16 +62,22 @@ export function WordAudioButton({
 
   const play = useCallback(() => {
     if (!src || failed) return;
+    allowPlaybackWhenSilenced();
     if (!audioRef.current) {
       audioRef.current = new Audio(src);
+      // `playing` is the event that fires when sound actually starts. Setting the state
+      // optimistically before calling play() meant a clip the browser could not decode still
+      // pulsed the button as though it were speaking, which is how 2,684 Ogg Vorbis clips
+      // stayed silently broken on iOS: the interface reported success either way.
+      audioRef.current.addEventListener('playing', () => setPlaying(true));
       audioRef.current.addEventListener('ended', () => setPlaying(false));
+      audioRef.current.addEventListener('pause', () => setPlaying(false));
       audioRef.current.addEventListener('error', () => {
         setFailed(true);
         setPlaying(false);
       });
     }
     audioRef.current.currentTime = 0;
-    setPlaying(true);
     void audioRef.current.play().catch(() => {
       setFailed(true);
       setPlaying(false);
@@ -128,6 +150,7 @@ export function LessonAudioPlayer({
     const audio = ref.current;
     if (!audio) return;
     if (audio.paused) {
+      allowPlaybackWhenSilenced();
       void audio.play().catch(() => setFailed(true));
     } else {
       audio.pause();
