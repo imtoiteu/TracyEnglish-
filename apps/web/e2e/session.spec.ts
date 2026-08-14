@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { ACCOUNTS, LOCALES, login, logout } from './helpers';
+import { ACCOUNTS, LOCALES, login, loginAs, logout, registerStudent } from './helpers';
 
 /**
  * Session consistency, enrolment and lesson completion.
@@ -56,7 +56,9 @@ test.describe('session', () => {
 
 test.describe('student journey', () => {
   test('enrol, study, complete — and it all survives a refresh and a fresh sign-in', async ({ page }) => {
-    await login(page, 'STUDENT');
+    // A new account every run, so there is always a course left to enrol in. See
+    // `registerStudent` for why using the seeded student made this test skip itself.
+    const student = await registerStudent(page, `journey-${process.env.E2E_RUN_ID ?? Date.now()}`);
 
     // --- find a course this student has not enrolled in yet
     await page.goto('/vi/courses', { waitUntil: 'domcontentloaded' });
@@ -72,7 +74,7 @@ test.describe('student journey', () => {
         break;
       }
     }
-    test.skip(!target, 'every seeded course is already enrolled for this account');
+    expect(target, 'a newly registered student must have a course available to enrol in').toBeTruthy();
 
     // --- enrol
     const enrolButton = page.locator('main button', { hasText: 'Đăng ký học' }).first();
@@ -109,6 +111,14 @@ test.describe('student journey', () => {
     await expect(page.locator('main').getByRole('link', { name: 'Đăng nhập' })).toHaveCount(0);
 
     const complete = page.locator('main button', { hasText: 'Đánh dấu hoàn thành' });
+    const alreadyDone = page.locator('main', { hasText: 'Đã hoàn thành' });
+
+    // Wait for the completion control to settle into one state or the other before deciding
+    // what to do. Counting it straight after `domcontentloaded` raced the render: the button
+    // had not appeared yet, the click was skipped as though the lesson were already complete,
+    // and the assertion after the reload then failed on a button that was there all along.
+    await expect(complete.or(alreadyDone).first()).toBeVisible();
+
     if (await complete.count()) {
       const [done] = await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/lessons/complete') && r.request().method() === 'POST'),
@@ -123,7 +133,7 @@ test.describe('student journey', () => {
 
     // --- and survives signing out and back in
     await logout(page);
-    await login(page, 'STUDENT');
+    await loginAs(page, student.email, student.password);
     await page.goto(lesson!, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('main button', { hasText: 'Đánh dấu hoàn thành' })).toHaveCount(0);
   });

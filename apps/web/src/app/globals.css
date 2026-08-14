@@ -2,11 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Charis SIL, self-hosted and subset to the characters IPA transcription needs.
+ *
+ * Google Fonts serves this family split into `unicode-range` subsets, and those subsets carry
+ * every IPA *letter* but not the combining diacritics: U+0361 (the tie bar in d͡ʒ) and U+032F
+ * (the non-syllabic mark in aʊ̯) are absent. The browser fell back to a system serif for just
+ * those two characters, and since neither Times on iOS nor Georgia has them, 818 of the 8,426
+ * words showed a tofu box in the middle of their transcription.
+ *
+ * Subsetting the real font is what fixes it, because it is the whole font's coverage that was
+ * the problem. The unicode range below deliberately takes the entire IPA Extensions, Spacing
+ * Modifiers, Combining Diacritics and Phonetic Extensions blocks rather than only the glyphs
+ * in use today, so re-running the ingest and picking up an unusual symbol cannot quietly
+ * reintroduce this. GPOS and GDEF are retained in the subset so the marks sit on their base
+ * letter instead of drifting off it.
+ *
+ * Charis SIL is licensed under the SIL Open Font License; see public/fonts/CharisSIL-OFL.txt.
+ */
+@font-face {
+  font-family: 'Charis SIL IPA';
+  src: url('/fonts/charis-sil-ipa-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Charis SIL IPA';
+  src: url('/fonts/charis-sil-ipa-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     --font-sans: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-display: 'Baloo 2', 'Nunito Sans', system-ui, sans-serif;
-    --font-phonetic: 'Charis SIL', 'Doulos SIL', 'Gentium Plus', Georgia, serif;
+    --font-phonetic: 'Charis SIL IPA', 'Charis SIL', 'Doulos SIL', 'Gentium Plus', Georgia, serif;
   }
 
   * {

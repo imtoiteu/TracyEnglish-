@@ -31,10 +31,15 @@ export const viewport: Viewport = {
 /**
  * The document shell.
  *
- * Fonts are loaded from Google Fonts with `display=swap` and a preconnect, so text is
- * readable immediately on a slow Vietnamese mobile connection rather than invisible until
- * the webfont lands. Charis SIL is included because IPA transcriptions render as empty
- * boxes in many default system fonts.
+ * The interface fonts come from Google Fonts with `display=swap` and a preconnect, so text is
+ * readable immediately on a slow Vietnamese mobile connection rather than invisible until the
+ * webfont lands.
+ *
+ * The phonetic font does not. Google serves Charis SIL split into `unicode-range` subsets that
+ * omit the combining diacritics IPA depends on, so transcriptions like /d͡ʒ/ lost their tie bar
+ * to a tofu box. It is self-hosted and subset locally instead — see the `@font-face` rules in
+ * globals.css — which also means pronunciation renders correctly with no third-party request.
+ * It is preloaded because it is needed for first paint on every vocabulary page.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -43,8 +48,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Charis+SIL:wght@400;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap"
           rel="stylesheet"
+        />
+        <link
+          rel="preload"
+          href="/fonts/charis-sil-ipa-400.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
       </head>
       <body>{children}</body>

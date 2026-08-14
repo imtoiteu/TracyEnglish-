@@ -15,7 +15,9 @@ const LOCALES = ['vi', 'en'] as const;
 const DEFAULT_LOCALE = 'vi';
 const COOKIE = 'tracy_locale';
 
-const SKIP = /^\/(?:_next|api|media|favicon|robots|sitemap|icon|apple-icon|manifest)/;
+// Static assets must never be locale-prefixed. Anything missing from this list gets redirected
+// to /vi/<path> and 404s — which is how the self-hosted IPA font silently failed to load.
+const SKIP = /^\/(?:_next|api|media|fonts|favicon|robots|sitemap|icon|apple-icon|manifest)/;
 
 function preferredLocale(request: NextRequest): string {
   const saved = request.cookies.get(COOKIE)?.value;

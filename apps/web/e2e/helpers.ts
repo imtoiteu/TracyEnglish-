@@ -35,6 +35,41 @@ export async function login(page: Page, role: RoleName, locale: TestLocale = 'vi
 }
 
 /**
+ * Register a brand-new student and return its credentials.
+ *
+ * The journey test needs a course nobody has enrolled in yet. Driving it with the seeded
+ * student worked exactly once: after that the account was enrolled everywhere, the test found
+ * no un-enrolled course and skipped itself — passing the suite while covering nothing. A fresh
+ * account each run means the enrolment and completion path is genuinely exercised every time.
+ *
+ * The email is derived from the caller-supplied tag, which must be unique per run.
+ */
+export async function registerStudent(page: Page, tag: string, locale: TestLocale = 'vi') {
+  const email = `e2e-${tag}@example.com`;
+  const password = 'E2e@Test2026';
+  await page.goto(`/${locale}/register`, { waitUntil: 'domcontentloaded' });
+  await page.fill('input[name="name"]', 'Người học kiểm thử');
+  await page.fill('input[name="email"]', email);
+  await page.fill('input[name="password"]', password);
+  await Promise.all([
+    page.waitForURL((url) => !url.pathname.endsWith('/register'), { timeout: 30_000 }),
+    page.click('button[type="submit"]'),
+  ]);
+  return { email, password };
+}
+
+/** Sign in with credentials returned by `registerStudent`. */
+export async function loginAs(page: Page, email: string, password: string, locale: TestLocale = 'vi') {
+  await page.goto(`/${locale}/login`, { waitUntil: 'domcontentloaded' });
+  await page.fill('input[name="email"]', email);
+  await page.fill('input[name="password"]', password);
+  await Promise.all([
+    page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 30_000 }),
+    page.click('button[type="submit"]'),
+  ]);
+}
+
+/**
  * Sign out without going through the menu.
  *
  * The menu path is asserted in `account-menu.spec.ts`; using it for setup elsewhere would make
