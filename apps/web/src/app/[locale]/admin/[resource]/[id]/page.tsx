@@ -8,7 +8,7 @@ import { Alert } from '@tracy/ui';
 import { ResourceForm } from '@/components/admin/resource-form';
 import { db } from '@/lib/db';
 import { findResource, type AdminField } from '@/lib/admin/resources';
-import { resolveLocale } from '@/lib/session';
+import { requireRole, resolveLocale } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +27,9 @@ export default async function AdminEditPage({
 }) {
   const resolved = await params;
   const locale = await resolveLocale(params);
+  // Authorisation is enforced here, not only in the layout: a layout redirect does
+  // not stop this page from rendering, so the check has to precede every query.
+  await requireRole(locale, 'ADMIN', `/${locale}/admin/${resolved.resource}/${resolved.id}`);
   const query = await searchParams;
   const t = (key: string) => translate(locale, key);
   const href = (path: string) => `/${locale}${path}`;

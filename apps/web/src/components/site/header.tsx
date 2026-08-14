@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BookOpen,
   ChevronDown,
@@ -63,7 +63,6 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<'learn' | 'centre' | 'account' | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
 
   // Close every menu on navigation — otherwise a dropdown stays open over the new page.
   useEffect(() => {
@@ -72,8 +71,20 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
   }, [pathname]);
 
   useEffect(() => {
-    const onClick = (event: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(event.target as Node)) setMenu(null);
+    /*
+     * Dismiss on an outside press.
+     *
+     * "Outside" has to mean outside *any* menu, not outside one of them. Scoping this to a
+     * single container is what broke the account menu: a press on one of its own items counted
+     * as outside, the panel unmounted on `mousedown`, and because the element was gone by
+     * `mouseup` the browser never produced a `click` at all — so the link never navigated and
+     * the logout button never submitted. Each menu root is tagged instead, so every one of them
+     * is recognised as inside.
+     */
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.('[data-menu-root]')) return;
+      setMenu(null);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -81,10 +92,10 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', onClick);
+    document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKey);
     };
   }, []);
@@ -97,6 +108,7 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
         <Link
           key={item.href}
           href={href(item.href)}
+          onClick={() => setMenu(null)}
           className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
         >
           <span className="text-brand-500">{item.icon}</span>
@@ -120,8 +132,8 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
             <Logo />
           </Link>
 
-          <nav ref={navRef} className="ml-2 hidden items-center gap-1 lg:flex" aria-label={t('nav.menu')}>
-            <div className="relative">
+          <nav className="ml-2 hidden items-center gap-1 lg:flex" aria-label={t('nav.menu')}>
+            <div className="relative" data-menu-root>
               <button
                 type="button"
                 onClick={() => setMenu(menu === 'learn' ? null : 'learn')}
@@ -159,7 +171,7 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
               {t('nav.exams')}
             </Link>
 
-            <div className="relative">
+            <div className="relative" data-menu-root>
               <button
                 type="button"
                 onClick={() => setMenu(menu === 'centre' ? null : 'centre')}
@@ -190,7 +202,7 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
             <LocaleSwitch />
 
             {user ? (
-              <div className="relative">
+              <div className="relative" data-menu-root>
                 <button
                   type="button"
                   onClick={() => setMenu(menu === 'account' ? null : 'account')}
@@ -210,18 +222,18 @@ export function SiteHeader({ user, announcement }: { user: SessionUser; announce
                       <p className="truncate text-xs text-ink-500">{user.email}</p>
                     </div>
                     <div className="my-1 h-px bg-ink-100" />
-                    <Link href={href('/dashboard')} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 hover:bg-brand-50">
+                    <Link href={href('/dashboard')} onClick={() => setMenu(null)} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 hover:bg-brand-50">
                       <LayoutDashboard className="h-4 w-4 text-brand-500" />
                       {t('nav.dashboard')}
                     </Link>
                     {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
-                      <Link href={href('/teacher')} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 hover:bg-brand-50">
+                      <Link href={href('/teacher')} onClick={() => setMenu(null)} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 hover:bg-brand-50">
                         <GraduationCap className="h-4 w-4 text-teal-500" />
                         {t('nav.teacherArea')}
                       </Link>
                     )}
                     {user.role === 'ADMIN' && (
-                      <Link href={href('/admin')} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 hover:bg-brand-50">
+                      <Link href={href('/admin')} onClick={() => setMenu(null)} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-ink-700 hover:bg-brand-50">
                         <Settings className="h-4 w-4 text-coral-500" />
                         {t('nav.admin')}
                       </Link>

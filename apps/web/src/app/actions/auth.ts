@@ -14,7 +14,7 @@ import {
   passwordProblem,
   pruneSessions,
   SESSION_COOKIE,
-  SESSION_DAYS,
+  sessionCookieOptions,
   verifyPassword,
 } from '@/lib/auth';
 import { db } from '@/lib/db';
@@ -28,14 +28,6 @@ import { db } from '@/lib/db';
  */
 
 export type AuthState = { error?: string; field?: string } | null;
-
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: 'lax' as const,
-  secure: process.env.NODE_ENV === 'production',
-  path: '/',
-  maxAge: SESSION_DAYS * 24 * 60 * 60,
-};
 
 function localeOf(value: FormDataEntryValue | null): Locale {
   const raw = String(value ?? '');
@@ -66,7 +58,7 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   await pruneSessions();
   const token = await createSession(user.id);
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, cookieOptions);
+  store.set(SESSION_COOKIE, token, await sessionCookieOptions());
   await db.user.update({ where: { id: user.id }, data: { lastSeenAt: new Date() } });
 
   redirect(safeNext(formData.get('next'), locale));
@@ -108,7 +100,7 @@ export async function registerAction(_prev: AuthState, formData: FormData): Prom
 
   const token = await createSession(user.id);
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, cookieOptions);
+  store.set(SESSION_COOKIE, token, await sessionCookieOptions());
 
   redirect(safeNext(formData.get('next'), locale));
 }

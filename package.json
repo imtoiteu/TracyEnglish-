@@ -18,7 +18,8 @@
     "db:seed": "npm run db:seed --workspace=@tracy/web",
     "db:reset": "npm run db:reset --workspace=@tracy/web",
     "content:ingest": "python3 scripts/ingest/run_all.py",
-    "content:stats": "python3 scripts/ingest/stats.py"
+    "content:stats": "python3 scripts/ingest/stats.py",
+    "test:e2e": "npm run test:e2e --workspace=@tracy/web"
   },
   "engines": {
     "node": ">=18.18.0"

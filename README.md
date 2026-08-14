@@ -137,18 +137,40 @@ form post cannot set a column the registry does not list. Every mutation is audi
 ## Testing
 
 ```bash
-npm test          # 64 tests
+npm test          # 72 unit and database tests
 npm run typecheck
 npm run build
+npm run test:e2e  # 30 browser tests — needs Node 20+
 ```
 
-The suite covers the grading engine (partial credit, near-miss tolerance, spaced repetition
+The unit suite covers the grading engine (partial credit, near-miss tolerance, spaced repetition
 boundaries), the localisation catalogue (including that every Vietnamese key has an English
-counterpart), and a journey test that runs against the real seeded database.
+counterpart), how the session cookie decides on its `Secure` flag, and a journey test that runs
+against the real seeded database.
+
+The browser suite drives a real Chromium against a production build: the account menu for each
+role in both locales, the student journey from sign-in through enrolment and lesson completion,
+and the authorisation boundaries. Some of what it covers cannot be tested any other way — a
+menu that unmounts between `mousedown` and `mouseup` still passes a synthetic click, and a
+cookie rejected for being `Secure` on an untrusted origin is only rejected by a real browser.
+
+Point it at a real address when you can:
+
+```bash
+E2E_BASE_URL=http://your-host:3888 npm run test:e2e
+```
+
+`localhost` and `127.0.0.1` are *trustworthy origins*, so they keep `Secure` cookies even over
+plain HTTP; the session test skips itself there because it cannot fail there.
 
 ## Deployment
 
-Any Node 18.18+ host (Node 20+ recommended — Next 15 warns below it). Set `DATABASE_URL`, then:
+Full notes, including how the session cookie's `Secure` flag is resolved, are in
+[`docs/deployment.md`](docs/deployment.md) — read that before deploying anywhere reachable, as
+serving sign-in over plain HTTP puts the session token on the wire in the clear.
+
+Any Node 18.18+ host (Node 20+ recommended — Next 15 warns below it, and the browser tests
+require it). Set `DATABASE_URL`, then:
 
 ```bash
 npm ci

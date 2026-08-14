@@ -69,7 +69,7 @@ export function EnrollButton({
       className="w-full"
     >
       {active ? <BookmarkCheck className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
-      {active ? 'Đã ghi danh' : t('action.enroll')}
+      {active ? t('action.enrolled') : t('action.enroll')}
     </Button>
   );
 }

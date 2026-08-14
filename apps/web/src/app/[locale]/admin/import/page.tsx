@@ -4,12 +4,15 @@ import { translate } from '@tracy/localization';
 import { Alert } from '@tracy/ui';
 
 import { ImportForm } from '@/components/admin/import-form';
-import { resolveLocale } from '@/lib/session';
+import { requireRole, resolveLocale } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ImportPage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = await resolveLocale(params);
+  // Authorisation is enforced here, not only in the layout: a layout redirect does
+  // not stop this page from rendering, so the check has to precede every query.
+  await requireRole(locale, 'ADMIN', `/${locale}/admin/import`);
   const t = (key: string) => translate(locale, key);
 
   return (

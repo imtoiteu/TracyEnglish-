@@ -93,7 +93,7 @@ export function WordActions({
           className="w-full"
         >
           {tracked ? <Check className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
-          {tracked ? 'Đang trong danh sách ôn' : t('vocab.addToList')}
+          {tracked ? t('vocab.inList') : t('vocab.addToList')}
         </Button>
 
         <Button
@@ -103,7 +103,7 @@ export function WordActions({
           className={cn('w-full', favourite && 'text-sun-700')}
         >
           <Star className={cn('h-4 w-4', favourite && 'fill-sun-400 text-sun-400')} />
-          {favourite ? 'Đã yêu thích' : t('action.favourite')}
+          {favourite ? t('action.favourited') : t('action.favourite')}
         </Button>
 
         <Link

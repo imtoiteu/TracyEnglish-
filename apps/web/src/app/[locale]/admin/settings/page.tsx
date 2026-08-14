@@ -3,7 +3,7 @@ import { Alert } from '@tracy/ui';
 
 import { SettingsForm } from '@/components/admin/settings-form';
 import { db } from '@/lib/db';
-import { resolveLocale } from '@/lib/session';
+import { requireRole, resolveLocale } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +15,9 @@ export default async function SettingsPage({
   searchParams: Promise<{ saved?: string }>;
 }) {
   const locale = await resolveLocale(params);
+  // Authorisation is enforced here, not only in the layout: a layout redirect does
+  // not stop this page from rendering, so the check has to precede every query.
+  await requireRole(locale, 'ADMIN', `/${locale}/admin/settings`);
   const query = await searchParams;
   const t = (key: string) => translate(locale, key);
 
